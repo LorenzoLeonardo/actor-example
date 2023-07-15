@@ -1,51 +1,37 @@
 mod car;
 
-use atticus::Requestor;
+use atticus::{run_actor, Actor};
+
 use car::sedan::Sedan;
 use car::suv::Suv;
-use car::CarRequest;
-use car::CarResponse;
+use car::{Car, CarRequest};
 
-enum CarKind {
-    Sedan(Sedan),
-    Suv(Suv),
-}
+async fn run_car<T>(car: T)
+where
+    T: Car + Actor,
+    T: Actor<Request = CarRequest>,
+    T: Actor<Response = String>,
+    <T as Actor>::Request: Send + Sync,
+    <T as Actor>::Response: Send + Sync,
+{
+    let actor_handle = run_actor(car, 1);
+    let requestor = actor_handle.requestor;
 
-pub type CarRequestResponse = Requestor<CarRequest, CarResponse>;
+    let response = requestor.request(CarRequest::Park).await.unwrap();
+    println!("{}", response.unwrap());
 
-impl CarKind {
-    pub fn spawn(self) -> CarRequestResponse {
-        match self {
-            CarKind::Sedan(car) => {
-                let handle = atticus::run_actor(car, 1);
-                handle.requestor
-            }
-            CarKind::Suv(car) => {
-                let handle = atticus::run_actor(car, 1);
-                handle.requestor
-            }
-        }
-    }
-}
+    let response = requestor.request(CarRequest::Drive).await.unwrap();
+    println!("{}", response.unwrap());
 
-async fn run_car(car: CarKind) {
-    let actor_handle = car.spawn();
+    let response = requestor.request(CarRequest::Brake).await.unwrap();
+    println!("{}", response.unwrap());
 
-    let response = actor_handle.request(CarRequest::Park).await.unwrap();
-    println!("{:?}", response);
-
-    let response = actor_handle.request(CarRequest::Drive).await.unwrap();
-    println!("{:?}", response);
-
-    let response = actor_handle.request(CarRequest::Brake).await.unwrap();
-    println!("{:?}", response);
-
-    let response = actor_handle.request(CarRequest::Reverse).await.unwrap();
-    println!("{:?}", response);
+    let response = requestor.request(CarRequest::Reverse).await.unwrap();
+    println!("{}", response.unwrap());
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    run_car(CarKind::Sedan(Sedan::new())).await;
-    run_car(CarKind::Suv(Suv::new())).await;
+    run_car(Sedan::new()).await;
+    run_car(Suv::new()).await;
 }
